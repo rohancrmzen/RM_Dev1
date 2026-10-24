@@ -1,0 +1,53 @@
+name: Salesforce CI/CD Deployment
+
+# Trigger the workflow whenever a commit is pushed (done) to the main branch
+on:
+  push:
+    branches:
+      - main
+    # Optional: Only run if files in your metadata directory change
+    paths:
+      - 'force-app/**'
+
+jobs:
+  deploy-to-salesforce:
+    name: Authenticate and Deploy Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Step 2: Install Node.js environment required for the Salesforce CLI
+      - name: Setup Node.js Environment
+        uses: actions/checkout@v4
+        with:
+          node-version: '20'
+
+      # Step 3: Install the modern Salesforce CLI globally
+      - name: Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf --version
+
+      # Step 4: Authenticate to your Salesforce target Org using JWT/OAuth
+      - name: Authenticate Salesforce Org
+        run: |
+          echo "${{ secrets.SF_JWT_KEY }}" > server.key
+          sf org login jwt \
+            --client-id ${{ secrets.SF_CLIENT_ID }} \
+            --jwt-key-file server.key \
+            --username ${{ secrets.SF_USERNAME }} \
+            --instance-url ${{ secrets.SF_INSTANCE_URL }} \
+            --set-default
+          rm server.key
+
+      # Step 5: Deploy the code to the authenticated Salesforce Org
+      # Validates Apex tests automatically if deploying to Production
+      - name: Deploy Source Metadata
+        run: |
+          sf project deploy start \
+            --source-dir force-app \
+            --test-level RunLocalTests \
+            --wait 30
